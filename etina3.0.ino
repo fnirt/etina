@@ -11,31 +11,32 @@
 
   Todo:
 
-  add instruments include
-
-  remove hardcoded direction
-
   implement potentiometer as volume adjustment
-  reimplement power LED
 
-  implement multi-button press to change instrument
-  display on Serial before display
-
-  implement LED display
-  power
-  note played
-  remove old LED
 
   hardware
-  add flex sensor
-  add potentiometer to Analog pin
-  fix headphone connection
-  label button connectors
-  fix all buttons
-  reimplement power switch
+    fix headphone connection
+    power display
 
   Done:
-  implement multi-sensor pushpull averaging
+    white end cap for left hand  
+    implement LED display
+    power
+    note played
+    remove old LED
+    display on Serial before display
+    add instruments include
+    implement multi-button press to change instrument
+    add potentiometer to Analog pin
+    label button connectors
+    fix all buttons
+    reimplement power switch
+    add flex sensor
+    reimplement power LED
+    remove hardcoded direction
+    implement multi-sensor pushpull averaging
+    solder flex sensor to main board
+    solder main board flex channels
 
 */
 
@@ -107,7 +108,6 @@ int lkNotes[] = {
 };
 
 byte numberOfPins = (sizeof(rkPins) / sizeof(rkPins[0]));
-byte lnumberOfPins = (sizeof(lkPins) / sizeof(lkPins[0]));
 
 movingAvg avgToF(10);                  // define the moving average object
 movingAvg avgPressure(10);                  // define the moving average object
@@ -116,7 +116,7 @@ movingAvg avgFlex(10);                  // define the moving average object
 int PowerLight = 12;
 int iLED = 13;
 bool ledState = false;
-int volume = 190;
+int volume = 240;
 int thisInstrument = VS1053_GM1_HARMONICA;
 
 /****************************************************************
@@ -127,8 +127,8 @@ int thisInstrument = VS1053_GM1_HARMONICA;
 
  ****************************************************************/
 
-Adafruit_LPS22 lps;                           // pressure sensor
-Adafruit_VL53L0X lox = Adafruit_VL53L0X();    // TofF
+//Adafruit_LPS22 lps;                           // pressure sensor
+//Adafruit_VL53L0X lox = Adafruit_VL53L0X();    // TofF
 SX1509 io;                                    // Create a Right SX1509 object
 SX1509 lio;                                   // Create a Left SX1509 object
 
@@ -191,16 +191,16 @@ void setup()
   Serial.println("Lights setup");
   pinMode(iLED, OUTPUT); // Use pin 13 LED as debug output
 
-  //  Serial.println("turn power light on");
-  //  pinMode(PowerLight, OUTPUT);
-  //  digitalWrite(PowerLight, HIGH); // Turn the power LED on
+  Serial.println("turn power light on");
+  pinMode(PowerLight, OUTPUT);
+  digitalWrite(PowerLight, HIGH); // Turn the power LED on
 
   Serial.println("quiet onboard led");
   digitalWrite(iLED, LOW); // Start it as low
 
   /*
      ToF sensor
-  */
+  * /
 
   Serial.println("Adafruit VL53L0X test");
   if (!lox.begin()) {
@@ -211,7 +211,7 @@ void setup()
 
   /*
      Pressure sensor
-  */
+  * /
   Serial.println("Adafruit LPS22 test");
   if (!lps.begin_I2C()) {
     Serial.println("Failed to find LPS22 chip");
@@ -255,8 +255,7 @@ void setup()
 
 void loop()
 {
-
-  /*     ToF read  */
+  /*     ToF read  * /
   VL53L0X_RangingMeasurementData_t measure;
   lox.rangingTest(&measure, false); // pass in 'true' to get debug data printout!
   int TOFreading = avgToF.reading(measure.RangeStatus);
@@ -264,7 +263,7 @@ void loop()
   ActOnReading(TOFreading, lastreading);
   lastreading = TOFreading;
 
-  /*   Pressure read  */
+  /*   Pressure read  * /
   sensors_event_t temp;
   sensors_event_t pressure;
   lps.getEvent(&pressure, &temp);// get pressure
@@ -272,6 +271,8 @@ void loop()
   Serial.print("  P: ");
   ActOnReading(thispressurereading, lastpressurereading);
   lastpressurereading = thispressurereading;
+*/
+  pushpullaggregator = 0;
 
   /*   Flex read  */
   int flexreading = avgFlex.reading(analogRead(flexinputPin));
@@ -291,11 +292,11 @@ void loop()
   }
 
   // hardcode pushing for testing
-  bPushing = true;
-  String command;
+  // bPushing = true;
 
   /*
      Look for console commands
+    String command;
 
     if(Serial.available()){
       command = Serial.readStringUntil('\n');
@@ -321,13 +322,18 @@ void loop()
 
   ****************************************************************/
 
+  Serial.print(" ");
   for (byte i = 0; i < numberOfPins; i = i + 1) {
     int place = i + i;
     if (bPushing == false) { // pull offset
       place += 1;
     }
-    ButtonCheck (lkNotes[place], io.digitalRead(lkPins[i]));
-    ButtonCheck (rkNotes[place], lio.digitalRead(rkPins[i]));
+
+    ButtonCheck (lkPins[i], lkNotes[place], lio.digitalRead(lkPins[i]));
+
+    Serial.print(" ");
+
+    ButtonCheck (rkPins[i], rkNotes[place], io.digitalRead(rkPins[i]));
   }
   Serial.println("!");               //Display the read value in the Serial monitor
 }
@@ -337,7 +343,7 @@ void ActOnReading(int thisreading, int lastreading) {
   if (thisreading < 1) {
     Serial.print("      _      ");
   } else {
-    if (thisreading  > lastreading) {
+    if (thisreading  < lastreading) {
       Serial.print("        PUSH ");
       pushpullaggregator -= 1;
     } else {
@@ -347,9 +353,11 @@ void ActOnReading(int thisreading, int lastreading) {
   }
 }
 
-void ButtonCheck(int thisNote, int buttonState) {
+void ButtonCheck(int thisPin, int thisNote, int buttonState) {
   if (buttonState == 0) {
-    Serial.print("  ON:  ");
+    Serial.print(" ");
+    Serial.print(thisPin);
+    Serial.print("/");
     Serial.print(thisNote);
     midiNoteOn(0, thisNote, 127); // channel, note, velocity
   } else {
